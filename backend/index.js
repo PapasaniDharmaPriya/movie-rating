@@ -170,7 +170,7 @@ app.get('/top-rating-movie', async (req, res) => {
                   GROUP BY
                       m.id, m.title
                   HAVING
-                      COUNT(r.*) >= 5
+                      COUNT(*) >= 5
                   )
                   SELECT
                       title
@@ -197,6 +197,115 @@ app.get('/top-rating-movie', async (req, res) => {
   }
 });
 
+app.get('/count-of-movies-with-high-rating', async (req, res) => {
+  try {
+
+    const query = `with movieratings AS (SELECT 
+                  r.movie_id
+                  FROM
+                  ratings r
+                  JOIN
+                  movies m ON r.movie_id = m.id
+                  GROUP BY
+                   r.movie_id having count(*)>4 
+                   and avg(r.rating)>=7) 
+                  select count(*) from movieratings; 
+                    `;
+    db.query(query, (err, resp) => {
+      if (err) {
+        return res.status(500).send("some error occured while executing query")
+      }
+      else if (resp) {
+        res.send(resp.rows[0].count);
+      }
+
+    })
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+app.get('/year-with-second-highest-number-of-action-movies', async (req, res) => {
+  try {
+
+    const query = `WITH movie_ratings AS (
+                  SELECT
+                      m.year,
+                      r.movie_id
+                  FROM
+                      ratings r
+                      JOIN movies m ON r.movie_id = m.id
+                  WHERE
+                      'USA' = ANY (STRING_TO_ARRAY(m.country, ','::TEXT))
+                      AND m.minutes < 120
+                      AND 'Action' = ANY (STRING_TO_ARRAY(m.genre, ','::TEXT))
+                  GROUP BY
+                      m.year,
+                      r.movie_id
+                  HAVING
+                      AVG(r.rating) >= 6.5
+              )
+              SELECT
+                  movie_ratings.year,
+                  COUNT(movie_id) AS movie_count
+              FROM
+                  movie_ratings
+              GROUP BY
+                  movie_ratings.year
+              ORDER BY
+                  movie_count DESC
+              LIMIT 2;  
+                    `;
+    db.query(query, (err, resp) => {
+      if (err) {
+        return res.status(500).send(err)
+      }
+      else if (resp) {
+        res.send(resp.rows?.lenght>1? resp.rows[1].year: 'there are no minimum number of match data in Table');
+      }
+
+    })
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+
+app.get('/highest-average-rating-for-movie-genre-by-rater-id', async (req, res) => {
+  try {
+
+    const query = `SELECT 
+                    m.genre, avg(r.rating) as rating
+                  FROM
+                      ratings r
+                          JOIN
+                      movies m ON r.movie_id = m.id
+                  WHERE
+                      r.rater_id=1040
+                  group by m.genre having count(*)>=5
+                  order by rating desc limit 1;`;
+    db.query(query, (err, resp) => {
+      if (err) {
+        return res.status(500).send(err)
+      }
+      else if (resp) {
+        res.send(resp.rows?.lenght?.rating);
+      }
+
+    })
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+
 app.listen(3000, () => {
   console.log('Server is running on port 3000');
 });
+
